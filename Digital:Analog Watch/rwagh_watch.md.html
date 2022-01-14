@@ -1,0 +1,115 @@
+                    <meta charset="utf-8" emacsmode="-*- markdown -*">
+                            **6.08 Design Excersize 1: Watch**
+									*Rohan Wagh*
+For this design excersize, we were expected to design a simple electronic watch. The watch would have to complete three main functions: 1) Pull up-to-date current local time from the internet, 2) Locally update and display current time, 3) Switch between displaying the time as analog or digital. 
+
+Specification:
+===============================================================================
+
+Video:
+-------------------------------------------------------------------------------
+"https://www.youtube.com/watch?v=9RCUgiCRZM0&feature=youtu.be"
+
+
+Hardware Components:
+-------------------------------------------------------------------------------
+This project used three components. The first is the ESP32 Microcontroller, which runs the program. The next component is a LCD Screen to display the time, and the last component is a button to toggle between digital and analog. The Button is connected to pin 5. 
+
+Software Structure:
+-------------------------------------------------------------------------------
+
+The overall control flow has to update the time, button screen, and screen every loop. The flow was organized to follow this order. After setup (where the wifi connection is established the the microcontroller/screen are initialized), the loop begins. At the start of the loop, the time is adjusted. This is done using a timer that is reset every time a second passes. Using an if statement, the program checks if the timer is 'behind' the millis() by over 1000, at which a second has passed. If this is true, the program adds 1 to the variable seconds (which stores the  seconds component of the local time) andd resets the timer to check for the 'next second.' After this, the program checks if seconds is over 60, if so, the program minuses 60 from seconds and adds one to minutes. The process is repeated to check if minutes goes over 60 and if hours goes over 24. 
+After updating the time, the program checks if it needs to pull the current time from the internet. It does this every 60 seconds, which is ensured using a timer variable. Once millis()-timer reaches over 60000 milliseconds, the program makes a PULL request from the server and gets the updated time. The response is then split using strtok and the hours, minutes, and seconds variables are updated. Finally, the timer is reset so it can count the next 60 seconds. 
+The next step is checking the button andd updating the states as nesecary. The program runs a function called "button_checker" to do this. This function runs using a state machine that alternates between three states: IDLE, button UP, and button DOWN. Upon initializing, the state is set to IDLE, where the program waits and 'idles' untill a button press. Upon a button press, the state is switched to DOWN (indicates that the button was been pressed down). The program doesn't do anything during this step, as it is possible that the button could be bouncing. Instead, the program waits for the button to be released while in the DOWN state, and will change to an UP state. In this UP state, it waits to see if the state hasn't changed for 200 milliseconds, to make sure there is no bouncing. Once the timer has passed 200 milliseconds, the state is changed back to IDLE and the variable toggle's sign is flipped to inform the program to change the display type (analog vs digital).
+
+*************************************************************************
+*                                                                       *
+*                                   on early push                       *
+*                                 <-----------------+                   *
+*                                                   |   *switch toggle  *
+*      ________              _________             _________            *
+*     |        | on push    /        / on release  \        \           *
+*     |  IDLE  +---------> /  DOWN  +-------------> \   UP   \          *
+*     |________|          /________/                 \________\         *
+*                                                        |              *
+*         ^             after de-bounce time             |              *
+*         +----------------------------------------------+              *
+*                                                                       *
+*************************************************************************
+
+Toggle is then used in the next and final step of the program, updating the LCD screen. If toggle is equal to one 1 (state variable DIG), then the program updates the screen in digital time. This is fairly easy and done by printing the hours, minutes, and seconds variables seperated by colons. On the other hand, updating the analog time is much more difficult. To update the analog time, the program uses a function called "draw_line." Do analog takes in the radius of the line (hours, minutes, or seconds hand) and the time_ratio. The time ratio is a ratio of how much of a full day/hour/minute the hours/minutes/seconds is at. Side note, as hours is between 0-23, the program checks if hours is above 12, and subtracts 12 for the calculations, as the hours hand will complete two cycles of the clock per day. This is calculated using the following equations:
+
+\begin{equation}
+seconds ratio = seconds/60
+\end{equation}
+\begin{equation}
+minutes ratio = (minutes + seconds ratio)/60
+\end{equation}
+\begin{equation}
+hours ratio = (hours + minutes ratio)/12
+\end{equation}
+
+For example 4:30:30 would have a time ratio of 0.5 for seconds, 0.50833 for minutes, and 0.3757 for hours. From here, the time ratios are converted from being 'amount of a full rotation around a clock to radians by multiplying by 2π, giving an angle (theta) that starts at the vertical. This angle, theta, is then converted to a Δx and Δy by using sin and cos respectively. This Δx and Δy is then used to draw the lines for the hours, minutes, and seconds clock. 
+
+\begin{equation}
+Θ = time ratio*2π
+\end{equation}
+\begin{equation}
+Δx = sin(Θ)
+\end{equation}
+\begin{equation}
+Δy = sin(Θ)
+\end{equation}
+
+Once the lcd screen is updates, the loop re-runs and program starts over again. Thus, concluding the features of the program. 
+
+Code Appendix
+-------------------------------------------------------------------------------
+Here is some of the cooler aspects of the code:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C
+void draw_line(uint8_t radius, float time_ratio) {
+  double theta = time_ratio*2*M_PI;
+  int d_x = (int)(sin(theta)*radius);
+  int d_y = -(int)(cos(theta)*radius);
+  tft.drawLine(center_x, center_y, center_x + d_x, center_y + d_y, TFT_GREEN);
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the 'draw_line' function, which takes the radius and time_ratio and draws a line for the analog clock
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C
+void button_checker(uint8_t button1) {
+  //checks button and updatess state and toggle accordingly
+  switch (state) {
+    case IDLE:
+      if (button1 == 1) { //Pressed
+        state = DOWN;
+      }
+      break;
+    case DOWN:
+      if (button1 != 1) { //lifted
+        state = UP;
+        idle_time = millis();
+      }
+      break;
+    case UP:
+      if (millis() - idle_time > 200) { //buffer time passed
+        state = IDLE;
+        tft.fillScreen(TFT_BLACK); //fill background
+        toggle = -toggle;
+      }
+      break;
+  }
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the 'button_checker' function that manages the state machine and updates toggle based on whether the buttoon has been pressed and released. 
+
+
+
+
+
+
+
+
+<!-- Markdeep: --><style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js" charset="utf-8"></script><script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+

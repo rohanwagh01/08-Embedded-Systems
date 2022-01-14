@@ -1,0 +1,120 @@
+                    <meta charset="utf-8" emacsmode="-*- markdown -*">
+                            **6.08 Design Excersize 2: Weather**
+									*Rohan Wagh*
+For this design excersize, we were expected to design a smart lamp feature that is controlled via a website. 
+
+Specification:
+===============================================================================
+
+Video:
+-------------------------------------------------------------------------------
+
+
+![SmartLampVideo](https://youtu.be/FdrqAuSV27U)
+
+
+Hardware Components:
+-------------------------------------------------------------------------------
+This project used two components. The first is the ESP32 Microcontroller, which runs the program and communicates with the server. The second component is a LED light, controlled using RGB inputs. 
+
+Software Structure:
+-------------------------------------------------------------------------------
+
+The actual structure of each program is quite simple, with most of the project focused on how to properly communicate information accross various devices. The path of information starts on the website. The user inputs the three colors using a slider and can press submit to send a POST request to the server. On the server, there is a script that takes in this POST request and saves the RGB colors in a database. On the other side, the lamp will periodically send a GET request (every 3000 milliseconds) to the same server script, the GET request will return the colors as a string: ex, "255,255,255". The light then changes color according to the colors returned by the server. 
+
+*************************************************************************
+*                                     ______________                    *
+*                                    |              |                   *
+*                                +-> |   DATABASE   |                   *
+*                                |   |______________|                   *
+*                                |       |                              *
+*      ________              ____|____   |         __________           *
+*     |        |   GET      /        / <-+   POST  \         \          *
+*     |  LAMP  +---------> / SERVER / <-------------+ WEBSITE \         *
+*     |________|          /________/                 \_________\        *
+*                                                                       *
+*                                                                       *
+*                                                                       *
+*                                                                       *
+*************************************************************************
+
+ Details:
+-------------------------------------------------------------------------------
+
+WEBSITE: The frontend of this project is a simple HTML site that holds a form. This form has three sliders, one for each color. When submitted, the form sends a POST request with the form contents stored in the request. In return the HTML site 'updates' by changing the color of the website to show what the lamp color is.
+
+SERVER: The server script just has a request handler that saves to the database and returns the appropriate information. If the request is a POST, from the website, the script will take out the values for red, green, and blue and save them to the database, which stores those three values along with time. It then returns a string holding the HTML contents for the website. It also adds a 'background color' that matches the POSTed color. If the request is a GET, from the lamp, then the script will pull the information from the database, ordered by the date/time. It will then pull out the newest value in the database and return the colors. 
+
+LAMP: The lamp is fairly simple. It makes a periodic GET request, about every 3000 milliseconds. It then adjusts the intentity of light for each color coming from the LED. It adjusts this using the built in mechanical duty cycling. There are three PMW channels that allow for the duty cycle to work independently for each color. The changing of how long the LED lights are on vs off will make the three colors appear different in intensity and let the user choose a larger range of 'mixed' colors. 
+
+Code Appendix
+-------------------------------------------------------------------------------
+Here is some of the cooler aspects of the code:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Python
+if request["method"] == "POST": #from website
+        conn = sqlite3.connect(lamp_db)
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS color_table (red int, green int, blue int);''')
+        c.execute('''INSERT into color_table VALUES (?,?,?);''', (request["form"]["red"], request["form"]["green"], request["form"]["blue"])) 
+        conn.commit()
+        conn.close() 
+        return """
+        <!DOCTYPE html>
+<html>
+<body style="background-color:rgb("""+str(request["form"]["red"])+""","""+str(request["form"]["green"])+""","""+str(request["form"]["blue"])+""");">
+
+<h1>Lamp Control</h1>
+<form action="https://608dev-2.net/sandbox/sc/rwagh/dex05/lamp_server_side_code.py" method="post">
+  <label for="red">Red (between 0 and 255):</label>
+  <input type="range" id="red" name="red" min="0" max="255">
+  <br>
+  <label for="green">Green (between 0 and 255):</label>
+  <input type="range" id="green" name="green" min="0" max="255">
+  <br>
+  <label for="blue">Blue (between 0 and 255):</label>
+  <input type="range" id="blue" name="blue" min="0" max="255">
+  <br>
+  <input type="submit">
+</form>
+
+</body>
+</html>
+        """
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the server's repsone to a POST request, saving the data and sending back the HTML form with the proper backgrouond color. 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C
+if (millis()-get_update_timer > 3000){
+    get_update_timer = millis();
+    char request_buffer[200];
+    sprintf(request_buffer, "GET /sandbox/sc/rwagh/dex05/lamp_server_side_code.py HTTP/1.1\r\n");
+    strcat(request_buffer, "Host: 608dev-2.net\r\n");
+    strcat(request_buffer, "\r\n"); //new line from header to body
+    do_http_request("608dev-2.net", request_buffer, response_buffer, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+    //NOW check if the coor has changed and if we need to change the LED
+    Serial.println(response_buffer); //viewable in Serial Terminal
+    DynamicJsonDocument doc(2048);
+    deserializeJson(doc, response_buffer);
+    int red_val = doc["red"];
+    int green_val = doc["green"];
+    int blue_val = doc["blue"];
+    Serial.println(red_val);
+    Serial.println(green_val);
+    Serial.println(blue_val);
+    ledcWrite(RED_pmw, red_val);
+    ledcWrite(GREEN_pmw, green_val);
+    ledcWrite(BLUE_pmw, blue_val);
+  }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the program running for the lamp. It takes the response and saves it as a json type that can be easily searched for the red, green, and blue values. 
+
+
+
+
+
+
+
+
+<!-- Markdeep: --><style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js" charset="utf-8"></script><script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+

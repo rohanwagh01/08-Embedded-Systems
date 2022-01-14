@@ -1,0 +1,67 @@
+                    <meta charset="utf-8" emacsmode="-*- markdown -*">
+                            **6.08 Design Exercise 8: Key Exchange**
+									*Rohan Wagh*
+
+This design exercise facilitates a key exchange and secure communication between the esp32 and server to send and recieve a simple message. 
+
+Specification:
+===============================================================================
+
+Video:
+-------------------------------------------------------------------------------
+
+
+![KeyExchangeVideo](https://youtu.be/TzJkuW3xuH0)
+
+
+Hardware Components:
+-------------------------------------------------------------------------------
+This project used two components. The first is the ESP32 Microcontroller, which runs the program and communicates with the server. The second component is a screen, that is used to display the message. 
+
+Software Structure:
+-------------------------------------------------------------------------------
+
+The structure of this code revolves around pushing two buttons, which both start a line of communication to the server. If the user presses button 1, the microcontroller send a GET request to the server, where a value for p and m are created and sent back, along with the t_server created using the server's hidden number a (t = m^a mod p). Upon pressing this button the server and microcontroller will create new hidden numbers and a new m and p. 
+
+When the user presses button 2, the microcontroller will use the value for p, it's hidden number a, and t_server to create a value for k, the encryption key, using the formula k = t_server^(a_mcu) mod p. This key is then passed to the function key_to_keyword that returns a keyword for viginere cypher. The mcu then encrypts the hardcoded message and sends the message along with the t_mcu to the server. The server then uses the t_mcu value and it's hidden number to ofind the encryption key and dencrypts the message. It then reverses the message, re-encrpyts it, and sends it back to the microcontroller. The microcontroller then decrypts it and displays the message.
+
+
+Code Appendix
+-------------------------------------------------------------------------------
+Here is some of the cooler aspects of the code:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Python
+def key_to_keyword(k):
+    return int(100000*(k/7.654567943))
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the key to keyword code that extends the number k into a larger vigenere keyword. 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Python
+def vigenere_cipher(message,keyword,encrypt):
+    output = ""
+    for index in range(len(message)):
+        ascii_num = ord(message[index])
+        ind = index
+        while ind > len(keyword)-1:
+            ind -= len(keyword)
+        shift = ord(keyword[ind])-32
+        new_num = ascii_num + shift if encrypt else ascii_num - shift
+        while new_num < 32:
+            new_num += 95
+        while new_num > 126:
+            new_num -= 95
+        output += chr(new_num)
+    return output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Here is the vigenere cipher code. 
+
+
+
+
+
+
+
+
+<!-- Markdeep: --><style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js" charset="utf-8"></script><script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+

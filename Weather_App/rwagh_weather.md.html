@@ -1,0 +1,183 @@
+                    <meta charset="utf-8" emacsmode="-*- markdown -*">
+                            **6.08 Design Excersize 2: Weather**
+									*Rohan Wagh*
+For this design excersize, we were expected to design a simple weather lookup feature. The user would be able to scan a menu and look up current information on the weather in their area. 
+
+Specification:
+===============================================================================
+
+Video:
+-------------------------------------------------------------------------------
+
+https://youtu.be/YCTRm7c5kF4
+
+
+Hardware Components:
+-------------------------------------------------------------------------------
+This project used three components. The first is the ESP32 Microcontroller, which runs the program. The next component is a LCD Screen to display the time, and the last component are two buttons to toggle between menu and menu items. The Buttons are connected to pin 5 and 19. 
+
+Software Structure:
+-------------------------------------------------------------------------------
+
+The overall control flow has to update the buttons and screen every loop. The flow was organized to follow this order. After setup (where the wifi connection is established the the microcontroller/screen are initialized), the loop begins. 
+The first step is checking the button and updating the states as nesecary. The program runs a function called "button_checker" to do this. This function runs using a state machine that alternates between three states: IDLE, button UP, and button DOWN. Upon initializing, the state is set to IDLE, where the program waits and 'idles' untill a button press. Upon a button press, the state is switched to DOWN (indicates that the button was been pressed down). The program doesn't do anything during this step, as it is possible that the button could be bouncing. Instead, the program waits for the button to be released while in the DOWN state, and will change to an UP state. In this UP state, it waits to see if the state hasn't changed for 200 milliseconds, to make sure there is no bouncing. Once the timer has passed 200 milliseconds, the state is changed back to IDLE and the button action is completed. This is used for both buttons. The button in pin 5 switched between the screens by flipping the sign of a variable called toggle. The button in pin 19 will change the value of a variable counter (if in the MENU state for toggle) that saves which menu item is currently selected.
+
+*************************************************************************
+*                                                                       *
+*                                   on early push                       *
+*                                 <-----------------+                   *
+*                                                   |  *complete action *
+*      ________              _________             _________            *
+*     |        | on push    /        / on release  \        \           *
+*     |  IDLE  +---------> /  DOWN  +-------------> \   UP   \          *
+*     |________|          /________/                 \________\         *
+*                                                        |              *
+*         ^             after de-bounce time             |              *
+*         +----------------------------------------------+              *
+*                                                                       *
+*************************************************************************
+
+In order to update the weather information, the system will make two GET requestss when screen is changed to the LIST state (toggle == LIST) and the counter was on a menu item. The first GET request gets the location for the user, lat and lon. The next GET request gets the information on the weather at that location from the weather API and may make some convertions to get to the output values. There are a series of const char arrays that store the information from each previous request. When the GET request is completed, the program will cycle back all the stored information, replace the oldest information, and update with the new response. 
+
+The program finishes each loop by updating the lcd screen. Once the lcd screen is updates, the loop re-runs and program starts over again. Thus, concluding the features of the program. 
+
+Code Appendix
+-------------------------------------------------------------------------------
+Here is some of the cooler aspects of the code:
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C
+void lcd_update() {
+  //check with toggle and updates the time
+  if (toggle == LIST) {
+    tft.setCursor(0,0,1);
+    tft.println(one);
+    tft.println(two);
+    tft.println(three);
+    tft.println(four);
+    tft.println(five);
+    tft.println(six);
+    tft.println(seven);
+  }
+  else {
+    tft.setCursor(0,0,1);
+    tft.print("Current temperature");
+    should_I(1);
+    tft.print("Current time");
+    should_I(2);
+    tft.print("Current date");
+    should_I(3);
+    tft.print("Current visibility");
+    should_I(4);
+    tft.print("Current humidity");
+    should_I(5);
+    tft.print("Current pressure");
+    should_I(6);
+    tft.print("exit");
+    should_I(0);
+  }
+}
+
+void should_I(int num) {
+  if (counter == num){
+    tft.println("*");
+  }
+  else {
+    tft.println(" ");
+  }
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the lcd update function. I created another function should_I that figures out where to put the asterix to show which menu item is selected. 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C
+  if (counter == 3) {
+    int times = doc["dt"];
+    int shift = doc["timezone"];
+    times = times + shift;
+    int year = 2021;
+    times = times - 1609477200;
+    char month[5];
+    int day = 2;
+    while (times >= 31536000) {
+      year++;
+      times = times - 31536000;
+    }
+    //check month
+    if (times >= 2678400) { //is in january
+      times = times - 2678400;
+      if (times >= 2419200) { //is it february
+        times = times - 2419200;
+        if (times >= 2678400) { //is it march
+          times = times - 2678400;
+          if (times >= 2592000) {
+            times = times - 2592000;
+            if (times >= 2678400) {
+              times = times - 2678400;
+              if (times >= 2592000) {
+                times = times - 2592000;
+                if (times >= 2678400) {
+                  times = times - 2678400;
+                  if (times >= 2678400) {
+                    times = times - 2678400;
+                    if (times >= 2592000) {
+                      times = times - 2592000;
+                      if (times >= 2678400) {
+                        times = times - 2678400;
+                        if (times >= 2592000) {
+                          times = times - 2592000;
+                          sprintf(month, "Dec");
+                        }
+                        else {
+                          sprintf(month, "Nov");
+                        }
+                      }
+                      else {
+                        sprintf(month, "Oct");
+                      }
+                    }
+                    else {
+                      sprintf(month, "Sep");
+                    }
+                  }
+                  else {
+                    sprintf(month, "Aug");
+                  }
+                }
+                else {
+                  sprintf(month, "July");
+                }
+              }
+              else {
+                sprintf(month, "June");
+              }
+            }
+            else {
+              sprintf(month, "May");
+            }
+          }
+          else {
+            sprintf(month, "Apr");
+          }
+        }
+        else {
+          sprintf(month, "Mar");
+        }
+      }
+      else {
+        sprintf(month, "Feb");
+      }
+    }
+    else {
+      sprintf(month, "Jan");
+    }
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is the convertion from UNIX time to month, day, year for the date option.
+
+
+
+
+
+
+
+
+<!-- Markdeep: --><style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js" charset="utf-8"></script><script src="https://morgan3d.github.io/markdeep/latest/markdeep.min.js?" charset="utf-8"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+
